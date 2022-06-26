@@ -1,0 +1,1322 @@
+@startuml
+namespace core {
+    class AggregateFuncExtractor << (S,Aquamarine) >> {
+        - inAggregateFuncExpr bool
+
+        + AggFuncs []*ast.AggregateFuncExpr
+
+        + Enter(n ast.Node) (ast.Node, bool)
+        + Leave(n ast.Node) (ast.Node, bool)
+
+    }
+    class Analyze << (S,Aquamarine) >> {
+        + ColTasks []AnalyzeColumnsTask
+        + IdxTasks []AnalyzeIndexTask
+
+    }
+    class AnalyzeColumnsTask << (S,Aquamarine) >> {
+        + PKInfo *model.ColumnInfo
+        + ColsInfo []*model.ColumnInfo
+        + TblInfo *model.TableInfo
+
+    }
+    class AnalyzeIndexTask << (S,Aquamarine) >> {
+        + IndexInfo *model.IndexInfo
+        + TblInfo *model.TableInfo
+
+    }
+    class ByItems << (S,Aquamarine) >> {
+        + Expr expression.Expression
+        + Desc bool
+
+        + String() string
+        + Clone() *ByItems
+
+    }
+    class DDL << (S,Aquamarine) >> {
+        + Statement ast.DDLNode
+
+    }
+    class DataSource << (S,Aquamarine) >> {
+        - indexHints []*ast.IndexHint
+        - table table.Table
+        - tableInfo *model.TableInfo
+        - pushedDownConds []expression.Expression
+        - allConds []expression.Expression
+        - statisticTable *statistics.Table
+        - tableStats *property.StatsInfo
+        - possibleAccessPaths []*util.AccessPath
+        - handleCol *expression.Column
+
+        + Columns []*model.ColumnInfo
+        + DBName model.CIStr
+        + TableAsName *model.CIStr
+        + TblCols []*expression.Column
+        + TblColHists *statistics.HistColl
+
+        - tryToGetDualTask() (task, error)
+        - getTableCandidate(path *util.AccessPath, prop *property.PhysicalProperty) *candidatePath
+        - getIndexCandidate(path *util.AccessPath, prop *property.PhysicalProperty, isSingleScan bool) *candidatePath
+        - skylinePruning(prop *property.PhysicalProperty) []*candidatePath
+        - findBestTask(prop *property.PhysicalProperty) (task, error)
+        - convertToIndexScan(prop *property.PhysicalProperty, candidate *candidatePath) (task, error)
+        - convertToTableScan(prop *property.PhysicalProperty, candidate *candidatePath) (task, error)
+        - getOriginalPhysicalTableScan(prop *property.PhysicalProperty, path *util.AccessPath, isMatchProp bool) (*PhysicalTableScan, float64, float64)
+        - getOriginalPhysicalIndexScan(prop *property.PhysicalProperty, path *util.AccessPath, isMatchProp bool, isSingleScan bool) (*PhysicalIndexScan, float64, float64)
+        - newExtraHandleSchemaCol() *expression.Column
+        - buildTableGather() LogicalPlan
+        - buildIndexGather(path *util.AccessPath) LogicalPlan
+        - deriveTablePathStats(path *util.AccessPath, conds []expression.Expression) (bool, error)
+        - fillIndexPath(path *util.AccessPath, conds []expression.Expression) error
+        - deriveIndexPathStats(path *util.AccessPath) bool
+        - getPKIsHandleCol() *expression.Column
+        - getHandleCol() *expression.Column
+        - getColumnNDV(colID int64) float64
+        - initStats() 
+        - deriveStatsByFilter(conds expression.CNFExprs, filledPaths []*util.AccessPath) *property.StatsInfo
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *DataSource
+        + Convert2Gathers() []LogicalPlan
+        + TableInfo() *model.TableInfo
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + PruneColumns(parentUsedCols []*expression.Column) error
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class Delete << (S,Aquamarine) >> {
+        + SelectPlan PhysicalPlan
+        + TblColPosInfos TblColPosInfoSlice
+
+        + Init(ctx sessionctx.Context) *Delete
+
+    }
+    class Explain << (S,Aquamarine) >> {
+        - explainedPlans <font color=blue>map</font>[int]bool
+
+        + TargetPlan Plan
+        + Format string
+        + ExecStmt ast.StmtNode
+        + Rows [][]string
+
+        - prepareSchema() error
+        - explainPlanInRowFormat(p Plan, taskType string, indent string, isLastChild bool) error
+        - prepareOperatorInfo(p Plan, taskType string, indent string, isLastChild bool) 
+        - prepareDotInfo(p PhysicalPlan) 
+        - prepareTaskDot(p PhysicalPlan, taskTp string, buffer *bytes.Buffer) 
+
+        + RenderResult() error
+
+    }
+    class Insert << (S,Aquamarine) >> {
+        - tableSchema *expression.Schema
+        - tableColNames types.NameSlice
+
+        + Table table.Table
+        + Columns []*ast.ColumnName
+        + Lists [][]expression.Expression
+        + SetList []*expression.Assignment
+        + IsReplace bool
+        + NeedFillDefaultValue bool
+        + SelectPlan PhysicalPlan
+        + AllAssignmentsAreConstant bool
+
+        + Init(ctx sessionctx.Context) *Insert
+        + ResolveIndices() error
+
+    }
+    class JoinType << (S,Aquamarine) >> {
+        + IsOuterJoin() bool
+        + String() string
+
+    }
+    class LogicalAggregation << (S,Aquamarine) >> {
+        - groupByCols []*expression.Column
+        - possibleProperties [][]*expression.Column
+        - inputCount float64
+
+        + AggFuncs []*aggregation.AggFuncDesc
+        + GroupByItems []expression.Expression
+
+        - getHashAggs(prop *property.PhysicalProperty) []PhysicalPlan
+        - exhaustPhysicalPlans(prop *property.PhysicalProperty) []PhysicalPlan
+        - collectGroupByColumns() 
+        - replaceExprColumns(replace <font color=blue>map</font>[string]*expression.Column) 
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *LogicalAggregation
+        + IsPartialModeAgg() bool
+        + GetGroupByCols() []*expression.Column
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + PruneColumns(parentUsedCols []*expression.Column) error
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalIndexScan << (S,Aquamarine) >> {
+        + Source *DataSource
+        + IsDoubleRead bool
+        + EqCondCount int
+        + AccessConds expression.CNFExprs
+        + Ranges []*ranger.Range
+        + Index *model.IndexInfo
+        + Columns []*model.ColumnInfo
+        + FullIdxCols []*expression.Column
+        + FullIdxColLens []int
+        + IdxCols []*expression.Column
+        + IdxColLens []int
+
+        - getPKIsHandleCol(schema *expression.Schema) *expression.Column
+
+        + ExplainInfo() string
+        + GetPhysicalIndexScan(schema *expression.Schema, stats *property.StatsInfo) *PhysicalIndexScan
+        + Init(ctx sessionctx.Context) *LogicalIndexScan
+        + MatchIndexProp(prop *property.PhysicalProperty) bool
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalJoin << (S,Aquamarine) >> {
+        - reordered bool
+        - cartesianJoin bool
+        - hintInfo *tableHintInfo
+        - preferJoinType uint
+        - leftProperties [][]*expression.Column
+        - rightProperties [][]*expression.Column
+        - equalCondOutCnt float64
+
+        + JoinType JoinType
+        + StraightJoin bool
+        + EqualConditions []*expression.ScalarFunction
+        + LeftConditions expression.CNFExprs
+        + RightConditions expression.CNFExprs
+        + OtherConditions expression.CNFExprs
+        + LeftJoinKeys []*expression.Column
+        + RightJoinKeys []*expression.Column
+        + DefaultValues []types.Datum
+
+        - moveEqualToOtherConditions(offsets []int) []expression.Expression
+        - getMergeJoin(prop *property.PhysicalProperty) []PhysicalPlan
+        - getEnforcedMergeJoin(prop *property.PhysicalProperty) []PhysicalPlan
+        - getHashJoins(prop *property.PhysicalProperty) []PhysicalPlan
+        - getHashJoin(prop *property.PhysicalProperty, innerIdx int) *PhysicalHashJoin
+        - exhaustPhysicalPlans(prop *property.PhysicalProperty) []PhysicalPlan
+        - pushDownConstExpr(expr expression.Expression, leftCond []expression.Expression, rightCond []expression.Expression, filterCond bool) ([]expression.Expression, []expression.Expression)
+        - extractOnCondition(conditions []expression.Expression, deriveLeft bool, deriveRight bool) ([]*expression.ScalarFunction, []expression.Expression, []expression.Expression, []expression.Expression)
+        - setPreferredJoinType(hintInfo *tableHintInfo) 
+        - attachOnConds(onConds []expression.Expression) 
+        - extractUsedCols(parentUsedCols []*expression.Column) ([]*expression.Column, []*expression.Column)
+        - mergeSchema() 
+        - replaceExprColumns(replace <font color=blue>map</font>[string]*expression.Column) 
+        - updateEQCond() 
+        - getProj(idx int) *LogicalProjection
+        - outerJoinPropConst(predicates []expression.Expression) []expression.Expression
+        - pushDownTopNToChild(topN *LogicalTopN, idx int) LogicalPlan
+        - pushDownTopN(topN *LogicalTopN) LogicalPlan
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *LogicalJoin
+        + ExtractOnCondition(conditions []expression.Expression, leftSchema *expression.Schema, rightSchema *expression.Schema, deriveLeft bool, deriveRight bool) ([]*expression.ScalarFunction, []expression.Expression, []expression.Expression, []expression.Expression)
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + PruneColumns(parentUsedCols []*expression.Column) error
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalLimit << (S,Aquamarine) >> {
+        + Offset uint64
+        + Count uint64
+
+        - exhaustPhysicalPlans(prop *property.PhysicalProperty) []PhysicalPlan
+        - convertToTopN() *LogicalTopN
+        - pushDownTopN(topN *LogicalTopN) LogicalPlan
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *LogicalLimit
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalMemTable << (S,Aquamarine) >> {
+        - dbName model.CIStr
+        - tableInfo *model.TableInfo
+
+        - findBestTask(prop *property.PhysicalProperty) (task, error)
+
+        + Init(ctx sessionctx.Context) *LogicalMemTable
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    interface LogicalPlan  {
+        - findBestTask(prop *property.PhysicalProperty) (task, error)
+        - pushDownTopN(topN *LogicalTopN) LogicalPlan
+        - recursiveDeriveStats() (*property.StatsInfo, error)
+        - exhaustPhysicalPlans( *property.PhysicalProperty) []PhysicalPlan
+
+        + PredicatePushDown( []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + PruneColumns( []*expression.Column) error
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + Children() []LogicalPlan
+        + SetChildren( ...LogicalPlan) 
+        + SetChild(i int, child LogicalPlan) 
+
+    }
+    class LogicalProjection << (S,Aquamarine) >> {
+        + Exprs []expression.Expression
+
+        - exhaustPhysicalPlans(prop *property.PhysicalProperty) []PhysicalPlan
+        - buildSchemaByExprs(selfSchema *expression.Schema) *expression.Schema
+        - replaceExprColumns(replace <font color=blue>map</font>[string]*expression.Column) 
+        - appendExpr(expr expression.Expression) *expression.Column
+        - pushDownTopN(topN *LogicalTopN) LogicalPlan
+
+        + TryToGetChildProp(prop *property.PhysicalProperty) (*property.PhysicalProperty, bool)
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *LogicalProjection
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + PruneColumns(parentUsedCols []*expression.Column) error
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalSelection << (S,Aquamarine) >> {
+        + Conditions []expression.Expression
+
+        - exhaustPhysicalPlans(prop *property.PhysicalProperty) []PhysicalPlan
+        - replaceExprColumns(replace <font color=blue>map</font>[string]*expression.Column) 
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *LogicalSelection
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + PruneColumns(parentUsedCols []*expression.Column) error
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalShow << (S,Aquamarine) >> {
+        - findBestTask(prop *property.PhysicalProperty) (task, error)
+
+        + Init(ctx sessionctx.Context) *LogicalShow
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalShowDDLJobs << (S,Aquamarine) >> {
+        + JobNumber int64
+
+        - findBestTask(prop *property.PhysicalProperty) (task, error)
+
+        + Init(ctx sessionctx.Context) *LogicalShowDDLJobs
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalSort << (S,Aquamarine) >> {
+        + ByItems []*ByItems
+
+        - getPhysicalSort(prop *property.PhysicalProperty) *PhysicalSort
+        - getNominalSort(reqProp *property.PhysicalProperty) *NominalSort
+        - exhaustPhysicalPlans(prop *property.PhysicalProperty) []PhysicalPlan
+        - replaceExprColumns(replace <font color=blue>map</font>[string]*expression.Column) 
+        - pushDownTopN(topN *LogicalTopN) LogicalPlan
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *LogicalSort
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + PruneColumns(parentUsedCols []*expression.Column) error
+
+    }
+    class LogicalTableDual << (S,Aquamarine) >> {
+        + RowCount int
+
+        - findBestTask(prop *property.PhysicalProperty) (task, error)
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *LogicalTableDual
+        + PruneColumns(parentUsedCols []*expression.Column) error
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalTableScan << (S,Aquamarine) >> {
+        + Source *DataSource
+        + Handle *expression.Column
+        + AccessConds expression.CNFExprs
+        + Ranges []*ranger.Range
+
+        + ExplainInfo() string
+        + GetPhysicalScan(schema *expression.Schema, stats *property.StatsInfo) *PhysicalTableScan
+        + Init(ctx sessionctx.Context) *LogicalTableScan
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalTopN << (S,Aquamarine) >> {
+        + ByItems []*ByItems
+        + Offset uint64
+        + Count uint64
+
+        - getPhysTopN() []PhysicalPlan
+        - getPhysLimits() []PhysicalPlan
+        - exhaustPhysicalPlans(prop *property.PhysicalProperty) []PhysicalPlan
+        - isLimit() bool
+        - replaceExprColumns(replace <font color=blue>map</font>[string]*expression.Column) 
+        - setChild(p LogicalPlan) LogicalPlan
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *LogicalTopN
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class LogicalUnionScan << (S,Aquamarine) >> {
+        - conditions []expression.Expression
+        - handleCol *expression.Column
+
+        - exhaustPhysicalPlans(prop *property.PhysicalProperty) []PhysicalPlan
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *LogicalUnionScan
+        + PruneColumns(parentUsedCols []*expression.Column) error
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+
+    }
+    class NominalSort << (S,Aquamarine) >> {
+        - attach2Task(tasks ...task) task
+
+        + Init(ctx sessionctx.Context, props ...*property.PhysicalProperty) *NominalSort
+
+    }
+    class PhysicalHashAgg << (S,Aquamarine) >> {
+        - cpuCostDivisor() (float64, float64)
+        - attach2Task(tasks ...task) task
+
+        + ToPB(ctx sessionctx.Context) (*tipb.Executor, error)
+        + GetCost(inputRows float64, isRoot bool) float64
+
+    }
+    class PhysicalHashJoin << (S,Aquamarine) >> {
+        + Concurrency uint
+        + EqualConditions []*expression.ScalarFunction
+
+        - explainInfo(normalized bool) string
+        - attach2Task(tasks ...task) task
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalHashJoin
+        + ResolveIndices() error
+        + GetCost(lCnt float64, rCnt float64) float64
+
+    }
+    class PhysicalIndexLookUpReader << (S,Aquamarine) >> {
+        - indexPlan PhysicalPlan
+        - tablePlan PhysicalPlan
+
+        + IndexPlans []PhysicalPlan
+        + TablePlans []PhysicalPlan
+        + ExtraHandleCol *expression.Column
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *PhysicalIndexLookUpReader
+        + ResolveIndices() error
+
+    }
+    class PhysicalIndexReader << (S,Aquamarine) >> {
+        - indexPlan PhysicalPlan
+
+        + IndexPlans []PhysicalPlan
+        + OutputColumns []*expression.Column
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + Init(ctx sessionctx.Context) *PhysicalIndexReader
+        + SetSchema(_ *expression.Schema) 
+        + SetChildren(children ...PhysicalPlan) 
+        + ResolveIndices() error
+
+    }
+    class PhysicalIndexScan << (S,Aquamarine) >> {
+        - dataSourceSchema *expression.Schema
+
+        + AccessCondition []expression.Expression
+        + Table *model.TableInfo
+        + Index *model.IndexInfo
+        + IdxCols []*expression.Column
+        + IdxColLens []int
+        + Ranges []*ranger.Range
+        + Columns []*model.ColumnInfo
+        + DBName model.CIStr
+        + TableAsName *model.CIStr
+        + Desc bool
+        + KeepOrder bool
+        + DoubleRead bool
+
+        - explainInfo(normalized bool) string
+        - indexScanRowSize(idx *model.IndexInfo, ds *DataSource, isForScan bool) float64
+        - initSchema(idx *model.IndexInfo, idxExprCols []*expression.Column, isDoubleRead bool) 
+        - addPushedDownSelection(copTask *copTask, p *DataSource, path *util.AccessPath, finalStats *property.StatsInfo) 
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + Init(ctx sessionctx.Context) *PhysicalIndexScan
+        + IsPointGetByUniqueKey(sc *stmtctx.StatementContext) bool
+        + ToPB(ctx sessionctx.Context) (*tipb.Executor, error)
+
+    }
+    class PhysicalLimit << (S,Aquamarine) >> {
+        + Offset uint64
+        + Count uint64
+
+        - attach2Task(tasks ...task) task
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalLimit
+        + ToPB(ctx sessionctx.Context) (*tipb.Executor, error)
+
+    }
+    class PhysicalMemTable << (S,Aquamarine) >> {
+        + DBName model.CIStr
+        + Table *model.TableInfo
+        + Columns []*model.ColumnInfo
+
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo) *PhysicalMemTable
+
+    }
+    class PhysicalMergeJoin << (S,Aquamarine) >> {
+        + CompareFuncs []expression.CompareFunc
+
+        - tryToGetChildReqProp(prop *property.PhysicalProperty) ([]*property.PhysicalProperty, bool)
+        - initCompareFuncs() 
+        - explainInfo(normalized bool) string
+        - attach2Task(tasks ...task) task
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo) *PhysicalMergeJoin
+        + ResolveIndices() error
+        + GetCost(lCnt float64, rCnt float64) float64
+
+    }
+    interface PhysicalPlan  {
+        - attach2Task( ...task) task
+
+        + ToPB(ctx sessionctx.Context) (*tipb.Executor, error)
+        + GetChildReqProps(idx int) *property.PhysicalProperty
+        + StatsCount() float64
+        + Children() []PhysicalPlan
+        + SetChildren( ...PhysicalPlan) 
+        + SetChild(i int, child PhysicalPlan) 
+        + ResolveIndices() error
+        + Stats() *property.StatsInfo
+        + ExplainNormalizedInfo() string
+
+    }
+    class PhysicalProjection << (S,Aquamarine) >> {
+        + Exprs []expression.Expression
+
+        - attach2Task(tasks ...task) task
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalProjection
+        + ResolveIndices() error
+        + GetCost(count float64) float64
+
+    }
+    class PhysicalSelection << (S,Aquamarine) >> {
+        + Conditions []expression.Expression
+
+        - attach2Task(tasks ...task) task
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalSelection
+        + ToPB(ctx sessionctx.Context) (*tipb.Executor, error)
+        + ResolveIndices() error
+
+    }
+    class PhysicalShow << (S,Aquamarine) >> {
+        + Init(ctx sessionctx.Context) *PhysicalShow
+
+    }
+    class PhysicalShowDDLJobs << (S,Aquamarine) >> {
+        + JobNumber int64
+
+        + Init(ctx sessionctx.Context) *PhysicalShowDDLJobs
+
+    }
+    class PhysicalSort << (S,Aquamarine) >> {
+        + ByItems []*ByItems
+
+        - attach2Task(tasks ...task) task
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalSort
+        + ResolveIndices() error
+        + GetCost(count float64) float64
+
+    }
+    class PhysicalTableDual << (S,Aquamarine) >> {
+        - names []*types.FieldName
+
+        + RowCount int
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo) *PhysicalTableDual
+        + OutputNames() types.NameSlice
+        + SetOutputNames(names types.NameSlice) 
+
+    }
+    class PhysicalTableReader << (S,Aquamarine) >> {
+        - tablePlan PhysicalPlan
+
+        + TablePlans []PhysicalPlan
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + Init(ctx sessionctx.Context) *PhysicalTableReader
+        + SetChildren(children ...PhysicalPlan) 
+        + ResolveIndices() error
+
+    }
+    class PhysicalTableScan << (S,Aquamarine) >> {
+        - filterCondition []expression.Expression
+        - pkCol *expression.Column
+
+        + AccessCondition []expression.Expression
+        + Table *model.TableInfo
+        + Columns []*model.ColumnInfo
+        + DBName model.CIStr
+        + Ranges []*ranger.Range
+        + TableAsName *model.CIStr
+        + HandleIdx int
+        + KeepOrder bool
+        + Desc bool
+
+        - explainInfo(normalized bool) string
+        - appendExtraHandleCol(ds *DataSource) (*expression.Column, bool)
+        - addPushedDownSelection(copTask *copTask, stats *property.StatsInfo) 
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + Init(ctx sessionctx.Context) *PhysicalTableScan
+        + ToPB(ctx sessionctx.Context) (*tipb.Executor, error)
+
+    }
+    class PhysicalTopN << (S,Aquamarine) >> {
+        + ByItems []*ByItems
+        + Offset uint64
+        + Count uint64
+
+        - canPushDown() bool
+        - allColsFromSchema(schema *expression.Schema) bool
+        - getPushedDownTopN(childPlan PhysicalPlan) *PhysicalTopN
+        - attach2Task(tasks ...task) task
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalTopN
+        + ToPB(ctx sessionctx.Context) (*tipb.Executor, error)
+        + ResolveIndices() error
+        + GetCost(count float64, isRoot bool) float64
+
+    }
+    class PhysicalUnionScan << (S,Aquamarine) >> {
+        + Conditions []expression.Expression
+        + HandleCol *expression.Column
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalUnionScan
+        + ResolveIndices() error
+
+    }
+    interface Plan  {
+        - replaceExprColumns(replace <font color=blue>map</font>[string]*expression.Column) 
+        - statsInfo() *property.StatsInfo
+
+        + Schema() *expression.Schema
+        + ID() int
+        + TP() string
+        + ExplainID() fmt.Stringer
+        + ExplainInfo() string
+        + SCtx() sessionctx.Context
+        + OutputNames() types.NameSlice
+        + SetOutputNames(names types.NameSlice) 
+
+    }
+    class PlanBuilder << (S,Aquamarine) >> {
+        - ctx sessionctx.Context
+        - is infoschema.InfoSchema
+        - colMapper <font color=blue>map</font>[*ast.ColumnNameExpr]int
+        - tableHintInfo []tableHintInfo
+        - optFlag uint64
+        - curClause clauseCode
+        - rewriterPool []*expressionRewriter
+        - rewriterCounter int
+        - inStraightJoin bool
+        - handleHelper *handleColHelper
+
+        - rewrite(ctx context.Context, exprNode ast.ExprNode, p LogicalPlan, aggMapper <font color=blue>map</font>[*ast.AggregateFuncExpr]int, asScalar bool) (expression.Expression, LogicalPlan, error)
+        - rewriteWithPreprocess(ctx context.Context, exprNode ast.ExprNode, p LogicalPlan, aggMapper <font color=blue>map</font>[*ast.AggregateFuncExpr]int, asScalar bool, preprocess <font color=blue>func</font>(ast.Node) ast.Node) (expression.Expression, LogicalPlan, error)
+        - getExpressionRewriter(ctx context.Context, p LogicalPlan) *expressionRewriter
+        - rewriteExprNode(rewriter *expressionRewriter, exprNode ast.ExprNode, asScalar bool) (expression.Expression, LogicalPlan, error)
+        - buildAggregation(ctx context.Context, p LogicalPlan, aggFuncList []*ast.AggregateFuncExpr, gbyItems []expression.Expression) (LogicalPlan, <font color=blue>map</font>[int]int, error)
+        - buildResultSetNode(ctx context.Context, node ast.ResultSetNode) (LogicalPlan, error)
+        - buildJoin(ctx context.Context, joinNode *ast.Join) (LogicalPlan, error)
+        - buildSelection(ctx context.Context, p LogicalPlan, where ast.ExprNode, AggMapper <font color=blue>map</font>[*ast.AggregateFuncExpr]int) (LogicalPlan, error)
+        - buildProjectionFieldNameFromColumns(origField *ast.SelectField, colNameField *ast.ColumnNameExpr, name *types.FieldName) (model.CIStr, model.CIStr, model.CIStr, model.CIStr, model.CIStr)
+        - buildProjectionFieldNameFromExpressions(ctx context.Context, field *ast.SelectField) (model.CIStr, error)
+        - buildProjectionField(ctx context.Context, p LogicalPlan, field *ast.SelectField, expr expression.Expression) (*expression.Column, *types.FieldName, error)
+        - buildProjection(ctx context.Context, p LogicalPlan, fields []*ast.SelectField, mapper <font color=blue>map</font>[*ast.AggregateFuncExpr]int) (LogicalPlan, int, error)
+        - buildDistinct(child LogicalPlan, length int) (*LogicalAggregation, error)
+        - buildSort(ctx context.Context, p LogicalPlan, byItems []*ast.ByItem, aggMapper <font color=blue>map</font>[*ast.AggregateFuncExpr]int) (*LogicalSort, error)
+        - buildLimit(src LogicalPlan, limit *ast.Limit) (LogicalPlan, error)
+        - resolveHavingAndOrderBy(sel *ast.SelectStmt, p LogicalPlan) (<font color=blue>map</font>[*ast.AggregateFuncExpr]int, <font color=blue>map</font>[*ast.AggregateFuncExpr]int, error)
+        - extractAggFuncs(fields []*ast.SelectField) ([]*ast.AggregateFuncExpr, <font color=blue>map</font>[*ast.AggregateFuncExpr]int)
+        - resolveGbyExprs(ctx context.Context, p LogicalPlan, gby *ast.GroupByClause, fields []*ast.SelectField) (LogicalPlan, []expression.Expression, error)
+        - unfoldWildStar(p LogicalPlan, selectFields []*ast.SelectField) ([]*ast.SelectField, error)
+        - pushTableHints(hints []*ast.TableOptimizerHint) 
+        - popTableHints() 
+        - appendUnmatchedJoinHintWarning(joinType string, joinTypeAlias string, hintTables []hintTableInfo) 
+        - buildSelect(ctx context.Context, sel *ast.SelectStmt) (LogicalPlan, error)
+        - buildTableDual() *LogicalTableDual
+        - buildDataSource(ctx context.Context, tn *ast.TableName, asName *model.CIStr) (LogicalPlan, error)
+        - buildMemTable(ctx context.Context, dbName model.CIStr, tableInfo *model.TableInfo) (LogicalPlan, error)
+        - buildDelete(ctx context.Context, delete *ast.DeleteStmt) (Plan, error)
+        - buildSet(ctx context.Context, v *ast.SetStmt) (Plan, error)
+        - detectSelectAgg(sel *ast.SelectStmt) bool
+        - getPossibleAccessPaths(indexHints []*ast.IndexHint, tbl table.Table, dbName model.CIStr, tblName model.CIStr) ([]*util.AccessPath, error)
+        - buildAdmin(ctx context.Context, as *ast.AdminStmt) (Plan, error)
+        - buildAnalyze(as *ast.AnalyzeTableStmt) (Plan, error)
+        - buildShow(ctx context.Context, show *ast.ShowStmt) (Plan, error)
+        - buildSimple(node ast.StmtNode) (Plan, error)
+        - getDefaultValue(col *table.Column) (*expression.Constant, error)
+        - findDefaultValue(cols []*table.Column, name *ast.ColumnName) (*expression.Constant, error)
+        - buildInsert(ctx context.Context, insert *ast.InsertStmt) (Plan, error)
+        - getAffectCols(insertStmt *ast.InsertStmt, insertPlan *Insert) ([]*table.Column, error)
+        - buildSetValuesOfInsert(ctx context.Context, insert *ast.InsertStmt, insertPlan *Insert, mockTablePlan *LogicalTableDual, checkRefColumn <font color=blue>func</font>(ast.Node) ast.Node) error
+        - buildValuesListOfInsert(ctx context.Context, insert *ast.InsertStmt, insertPlan *Insert, mockTablePlan *LogicalTableDual, checkRefColumn <font color=blue>func</font>(ast.Node) ast.Node) error
+        - buildSelectPlanOfInsert(ctx context.Context, insert *ast.InsertStmt, insertPlan *Insert) error
+        - buildDDL(ctx context.Context, node ast.DDLNode) (Plan, error)
+        - buildExplainPlan(targetPlan Plan, format string, execStmt ast.StmtNode) (Plan, error)
+        - buildExplain(ctx context.Context, explain *ast.ExplainStmt) (Plan, error)
+
+        + TableHints() *tableHintInfo
+        + GetOptFlag() uint64
+        + Build(ctx context.Context, node ast.Node) (Plan, error)
+
+    }
+    class Set << (S,Aquamarine) >> {
+        + VarAssigns []*expression.VarAssignment
+
+    }
+    class ShowContents << (S,Aquamarine) >> {
+        + Tp ast.ShowStmtType
+        + DBName string
+        + Table *ast.TableName
+        + Column *ast.ColumnName
+        + IndexName model.CIStr
+        + Flag int
+        + Full bool
+        + IfNotExists bool
+        + GlobalScope bool
+
+    }
+    class ShowDDL << (S,Aquamarine) >> {
+    }
+    class Simple << (S,Aquamarine) >> {
+        + Statement ast.StmtNode
+
+    }
+    class TblColPosInfo << (S,Aquamarine) >> {
+        + TblID int64
+        + Start int
+        + HandleOrdinal int
+
+    }
+    class TblColPosInfoSlice << (S,Aquamarine) >> {
+        + Len() int
+        + Swap(i int, j int) 
+        + Less(i int, j int) bool
+        + FindHandle(colOrdinal int) (int, bool)
+
+    }
+    class TiKVSingleGather << (S,Aquamarine) >> {
+        + Source *DataSource
+        + IsIndexGather bool
+        + Index *model.IndexInfo
+
+        + ExplainInfo() string
+        + Init(ctx sessionctx.Context) *TiKVSingleGather
+        + GetPhysicalTableReader(schema *expression.Schema, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalTableReader
+        + GetPhysicalIndexReader(schema *expression.Schema, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalIndexReader
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+
+    }
+    class aggregationEliminateChecker << (S,Aquamarine) >> {
+        - tryToEliminateAggregation(agg *LogicalAggregation) *LogicalProjection
+        - convertAggToProj(agg *LogicalAggregation) *LogicalProjection
+        - rewriteExpr(ctx sessionctx.Context, aggFunc *aggregation.AggFuncDesc) expression.Expression
+        - rewriteCount(ctx sessionctx.Context, exprs []expression.Expression, targetTp *types.FieldType) expression.Expression
+
+    }
+    class aggregationEliminator << (S,Aquamarine) >> {
+        - optimize(ctx context.Context, p LogicalPlan) (LogicalPlan, error)
+        - name() string
+
+    }
+    class aggregationPushDownSolver << (S,Aquamarine) >> {
+        - isDecomposable(fun *aggregation.AggFuncDesc) bool
+        - getAggFuncChildIdx(aggFunc *aggregation.AggFuncDesc, schema *expression.Schema) int
+        - collectAggFuncs(agg *LogicalAggregation, join *LogicalJoin) (bool, []*aggregation.AggFuncDesc, []*aggregation.AggFuncDesc)
+        - collectGbyCols(agg *LogicalAggregation, join *LogicalJoin) ([]*expression.Column, []*expression.Column)
+        - splitAggFuncsAndGbyCols(agg *LogicalAggregation, join *LogicalJoin) (bool, []*aggregation.AggFuncDesc, []*aggregation.AggFuncDesc, []*expression.Column, []*expression.Column)
+        - addGbyCol(ctx sessionctx.Context, gbyCols []*expression.Column, cols ...*expression.Column) []*expression.Column
+        - checkValidJoin(join *LogicalJoin) bool
+        - decompose(ctx sessionctx.Context, aggFunc *aggregation.AggFuncDesc, schema *expression.Schema) ([]*aggregation.AggFuncDesc, *expression.Schema)
+        - tryToPushDownAgg(aggFuncs []*aggregation.AggFuncDesc, gbyCols []*expression.Column, join *LogicalJoin, childIdx int) (LogicalPlan, error)
+        - getDefaultValues(agg *LogicalAggregation) ([]types.Datum, bool)
+        - checkAnyCountAndSum(aggFuncs []*aggregation.AggFuncDesc) bool
+        - makeNewAgg(ctx sessionctx.Context, aggFuncs []*aggregation.AggFuncDesc, gbyCols []*expression.Column) (*LogicalAggregation, error)
+        - optimize(ctx context.Context, p LogicalPlan) (LogicalPlan, error)
+        - aggPushDown(p LogicalPlan) (LogicalPlan, error)
+        - name() string
+
+    }
+    class analyzeInfo << (S,Aquamarine) >> {
+        + DBName string
+        + TableName string
+        + PhysicalTableID int64
+
+    }
+    class baseLogicalPlan << (S,Aquamarine) >> {
+        - taskMap <font color=blue>map</font>[string]task
+        - self LogicalPlan
+        - children []LogicalPlan
+
+        - exhaustPhysicalPlans(_ *property.PhysicalProperty) []PhysicalPlan
+        - findBestTask(prop *property.PhysicalProperty) (task, error)
+        - getTask(prop *property.PhysicalProperty) task
+        - storeTask(prop *property.PhysicalProperty, task task) 
+        - pushDownTopN(topN *LogicalTopN) LogicalPlan
+        - recursiveDeriveStats() (*property.StatsInfo, error)
+
+        + ExplainInfo() string
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + PruneColumns(parentUsedCols []*expression.Column) error
+        + Schema() *expression.Schema
+        + OutputNames() types.NameSlice
+        + SetOutputNames(names types.NameSlice) 
+        + Children() []LogicalPlan
+        + SetChildren(children ...LogicalPlan) 
+        + SetChild(i int, child LogicalPlan) 
+        + PreparePossibleProperties(schema *expression.Schema, childrenProperties ...[][]*expression.Column) [][]*expression.Column
+        + PredicatePushDown(predicates []expression.Expression) ([]expression.Expression, LogicalPlan)
+        + DeriveStats(childStats []*property.StatsInfo, selfSchema *expression.Schema, childSchema []*expression.Schema) (*property.StatsInfo, error)
+
+    }
+    class basePhysicalAgg << (S,Aquamarine) >> {
+        + AggFuncs []*aggregation.AggFuncDesc
+        + GroupByItems []expression.Expression
+
+        - explainInfo(normalized bool) string
+        - initForHash(ctx sessionctx.Context, stats *property.StatsInfo, props ...*property.PhysicalProperty) *PhysicalHashAgg
+        - getAggFuncCostFactor() float64
+        - newPartialAggregate() (PhysicalPlan, PhysicalPlan)
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + Init(ctx sessionctx.Context, stats *property.StatsInfo) *basePhysicalAgg
+        + ResolveIndices() error
+
+    }
+    class basePhysicalJoin << (S,Aquamarine) >> {
+        + JoinType JoinType
+        + LeftConditions expression.CNFExprs
+        + RightConditions expression.CNFExprs
+        + OtherConditions expression.CNFExprs
+        + InnerChildIdx int
+        + OuterJoinKeys []*expression.Column
+        + InnerJoinKeys []*expression.Column
+        + LeftJoinKeys []*expression.Column
+        + RightJoinKeys []*expression.Column
+        + DefaultValues []types.Datum
+
+    }
+    class basePhysicalPlan << (S,Aquamarine) >> {
+        - childrenReqProps []*property.PhysicalProperty
+        - self PhysicalPlan
+        - children []PhysicalPlan
+
+        - attach2Task(tasks ...task) task
+
+        + ExplainInfo() string
+        + ExplainNormalizedInfo() string
+        + GetChildReqProps(idx int) *property.PhysicalProperty
+        + Schema() *expression.Schema
+        + Children() []PhysicalPlan
+        + SetChildren(children ...PhysicalPlan) 
+        + SetChild(i int, child PhysicalPlan) 
+        + ToPB(_ sessionctx.Context) (*tipb.Executor, error)
+        + ResolveIndices() error
+        + StatsCount() float64
+
+    }
+    class basePlan << (S,Aquamarine) >> {
+        - tp string
+        - id int
+        - ctx sessionctx.Context
+        - stats *property.StatsInfo
+
+        - replaceExprColumns(replace <font color=blue>map</font>[string]*expression.Column) 
+        - statsInfo() *property.StatsInfo
+
+        + OutputNames() types.NameSlice
+        + SetOutputNames(names types.NameSlice) 
+        + ID() int
+        + ExplainInfo() string
+        + ExplainID() fmt.Stringer
+        + TP() string
+        + Stats() *property.StatsInfo
+        + SCtx() sessionctx.Context
+
+    }
+    class baseSchemaProducer << (S,Aquamarine) >> {
+        - schema *expression.Schema
+        - names types.NameSlice
+
+        - setSchemaAndNames(schema *expression.Schema, names types.NameSlice) 
+
+        + ResolveIndices() error
+        + OutputNames() types.NameSlice
+        + SetOutputNames(names types.NameSlice) 
+        + Schema() *expression.Schema
+        + SetSchema(schema *expression.Schema) 
+
+    }
+    class baseSingleGroupJoinOrderSolver << (S,Aquamarine) >> {
+        - ctx sessionctx.Context
+        - curJoinGroup []*jrNode
+        - otherConds []expression.Expression
+
+        - baseNodeCumCost(groupNode LogicalPlan) float64
+        - makeBushyJoin(cartesianJoinGroup []LogicalPlan) LogicalPlan
+        - newCartesianJoin(lChild LogicalPlan, rChild LogicalPlan) *LogicalJoin
+        - newJoinWithEdges(lChild LogicalPlan, rChild LogicalPlan, eqEdges []*expression.ScalarFunction, otherConds []expression.Expression) LogicalPlan
+        - calcJoinCumCost(join LogicalPlan, lNode *jrNode, rNode *jrNode) float64
+
+    }
+    class buildKeySolver << (S,Aquamarine) >> {
+        - optimize(ctx context.Context, lp LogicalPlan) (LogicalPlan, error)
+        - name() string
+
+    }
+    class candidatePath << (S,Aquamarine) >> {
+        - path *util.AccessPath
+        - columnSet *intsets.Sparse
+        - isSingleScan bool
+        - isMatchProp bool
+
+    }
+    class columnPruner << (S,Aquamarine) >> {
+        - optimize(ctx context.Context, lp LogicalPlan) (LogicalPlan, error)
+        - name() string
+
+    }
+    class columnsWithNames << (S,Aquamarine) >> {
+        - cols []*expression.Column
+        - names types.NameSlice
+
+        - col2Schema() *expression.Schema
+
+        + Append(col *expression.Column, name *types.FieldName) 
+
+    }
+    class copTask << (S,Aquamarine) >> {
+        - indexPlan PhysicalPlan
+        - tablePlan PhysicalPlan
+        - cst float64
+        - indexPlanFinished bool
+        - keepOrder bool
+        - doubleReadNeedProj bool
+        - extraHandleCol *expression.Column
+        - tblColHists *statistics.HistColl
+        - tblCols []*expression.Column
+        - rootTaskConds []expression.Expression
+
+        - invalid() bool
+        - count() float64
+        - addCost(cst float64) 
+        - cost() float64
+        - copy() task
+        - plan() PhysicalPlan
+        - finishIndexPlan() 
+
+    }
+    class core.JoinType << (T, #FF7700) >>  {
+    }
+    class core.PreprocessOpt << (T, #FF7700) >>  {
+    }
+    class core.TblColPosInfoSlice << (T, #FF7700) >>  {
+    }
+    class core.clauseCode << (T, #FF7700) >>  {
+    }
+    class core.preprocessorFlag << (T, #FF7700) >>  {
+    }
+    class expressionRewriter << (S,Aquamarine) >> {
+        - ctxStack []expression.Expression
+        - ctxNameStk []*types.FieldName
+        - p LogicalPlan
+        - schema *expression.Schema
+        - names []*types.FieldName
+        - err error
+        - aggrMap <font color=blue>map</font>[*ast.AggregateFuncExpr]int
+        - b *PlanBuilder
+        - sctx sessionctx.Context
+        - ctx context.Context
+        - asScalar bool
+        - preprocess <font color=blue>func</font>(ast.Node) ast.Node
+        - insertPlan *Insert
+
+        - ctxStackLen() int
+        - ctxStackPop(num int) 
+        - ctxStackAppend(col expression.Expression, name *types.FieldName) 
+        - constructBinaryOpFunction(l expression.Expression, r expression.Expression, op string) (expression.Expression, error)
+        - newFunction(funcName string, retType *types.FieldType, args ...expression.Expression) (expression.Expression, error)
+        - rewriteVariable(v *ast.VariableExpr) 
+        - unaryOpToExpression(v *ast.UnaryOperationExpr) 
+        - binaryOpToExpression(v *ast.BinaryOperationExpr) 
+        - notToExpression(hasNot bool, op string, tp *types.FieldType, args ...expression.Expression) expression.Expression
+        - isNullToExpression(v *ast.IsNullExpr) 
+        - inToExpression(lLen int, not bool, tp *types.FieldType) 
+        - rowToScalarFunc(v *ast.RowExpr) 
+        - betweenToExpression(v *ast.BetweenExpr) 
+        - rewriteFuncCall(v *ast.FuncCallExpr) bool
+        - funcCallToExpression(v *ast.FuncCallExpr) 
+        - toColumn(v *ast.ColumnName) 
+        - evalDefaultExpr(v *ast.DefaultExpr) 
+
+        + Enter(inNode ast.Node) (ast.Node, bool)
+        + Leave(originInNode ast.Node) (ast.Node, bool)
+
+    }
+    class fullJoinRowCountHelper << (S,Aquamarine) >> {
+        - cartesian bool
+        - leftProfile *property.StatsInfo
+        - rightProfile *property.StatsInfo
+        - leftJoinKeys []*expression.Column
+        - rightJoinKeys []*expression.Column
+        - leftSchema *expression.Schema
+        - rightSchema *expression.Schema
+
+        - estimate() float64
+
+    }
+    class gbyResolver << (S,Aquamarine) >> {
+        - ctx sessionctx.Context
+        - fields []*ast.SelectField
+        - schema *expression.Schema
+        - names []*types.FieldName
+        - err error
+        - inExpr bool
+        - exprDepth int
+
+        + Enter(inNode ast.Node) (ast.Node, bool)
+        + Leave(inNode ast.Node) (ast.Node, bool)
+
+    }
+    class handleColHelper << (S,Aquamarine) >> {
+        - id2HandleMapStack []<font color=blue>map</font>[int64][]*expression.Column
+        - stackTail int
+
+        - popMap() <font color=blue>map</font>[int64][]*expression.Column
+        - pushMap(m <font color=blue>map</font>[int64][]*expression.Column) 
+        - mergeAndPush(m1 <font color=blue>map</font>[int64][]*expression.Column, m2 <font color=blue>map</font>[int64][]*expression.Column) 
+        - tailMap() <font color=blue>map</font>[int64][]*expression.Column
+
+    }
+    class havingAndOrderbyExprResolver << (S,Aquamarine) >> {
+        - inAggFunc bool
+        - inExpr bool
+        - orderBy bool
+        - err error
+        - p LogicalPlan
+        - selectFields []*ast.SelectField
+        - aggMapper <font color=blue>map</font>[*ast.AggregateFuncExpr]int
+        - colMapper <font color=blue>map</font>[*ast.ColumnNameExpr]int
+        - gbyItems []*ast.ByItem
+        - curClause clauseCode
+
+        - resolveFromPlan(v *ast.ColumnNameExpr, p LogicalPlan) (int, error)
+
+        + Enter(n ast.Node) (ast.Node, bool)
+        + Leave(n ast.Node) (ast.Node, bool)
+
+    }
+    class hintTableInfo << (S,Aquamarine) >> {
+        - dbName model.CIStr
+        - tblName model.CIStr
+        - matched bool
+
+    }
+    class indexHintInfo << (S,Aquamarine) >> {
+        - dbName model.CIStr
+        - tblName model.CIStr
+        - indexHint *ast.IndexHint
+
+    }
+    class joinGroupEqEdge << (S,Aquamarine) >> {
+        - nodeIDs []int
+        - edge *expression.ScalarFunction
+
+    }
+    class joinGroupNonEqEdge << (S,Aquamarine) >> {
+        - nodeIDs []int
+        - nodeIDMask uint
+        - expr expression.Expression
+
+    }
+    class joinReOrderSolver << (S,Aquamarine) >> {
+        - optimize(ctx context.Context, p LogicalPlan) (LogicalPlan, error)
+        - optimizeRecursive(ctx sessionctx.Context, p LogicalPlan) (LogicalPlan, error)
+        - name() string
+
+    }
+    class joinReorderDPSolver << (S,Aquamarine) >> {
+        - newJoin <font color=blue>func</font>(LogicalPlan, LogicalPlan, []*expression.ScalarFunction, []expression.Expression) LogicalPlan
+
+        - solve(joinGroup []LogicalPlan, eqConds []expression.Expression) (LogicalPlan, error)
+        - newJoinWithEdge(leftPlan LogicalPlan, rightPlan LogicalPlan, edges []joinGroupEqEdge, otherConds []expression.Expression) (LogicalPlan, error)
+        - makeBushyJoin(cartesianJoinGroup []LogicalPlan, otherConds []expression.Expression) LogicalPlan
+
+    }
+    class joinReorderGreedySolver << (S,Aquamarine) >> {
+        - eqEdges []*expression.ScalarFunction
+
+        - solve(joinNodePlans []LogicalPlan) (LogicalPlan, error)
+        - constructConnectedJoinTree() (*jrNode, error)
+        - checkConnectionAndMakeJoin(leftNode LogicalPlan, rightNode LogicalPlan) (LogicalPlan, []expression.Expression)
+
+    }
+    class jrNode << (S,Aquamarine) >> {
+        - p LogicalPlan
+        - cumCost float64
+
+    }
+    interface logicalOptRule  {
+        - optimize( context.Context,  LogicalPlan) (LogicalPlan, error)
+        - name() string
+
+    }
+    class logicalSchemaProducer << (S,Aquamarine) >> {
+        - schema *expression.Schema
+        - names types.NameSlice
+
+        - setSchemaAndNames(schema *expression.Schema, names types.NameSlice) 
+
+        + BuildKeyInfo(selfSchema *expression.Schema, childSchema []*expression.Schema) 
+        + Schema() *expression.Schema
+        + OutputNames() types.NameSlice
+        + SetOutputNames(names types.NameSlice) 
+        + SetSchema(schema *expression.Schema) 
+
+    }
+    class maxMinEliminator << (S,Aquamarine) >> {
+        - optimize(ctx context.Context, p LogicalPlan) (LogicalPlan, error)
+        - composeAggsByInnerJoin(aggs []*LogicalAggregation) LogicalPlan
+        - checkColCanUseIndex(plan LogicalPlan, col *expression.Column, conditions []expression.Expression) bool
+        - cloneSubPlans(plan LogicalPlan) LogicalPlan
+        - splitAggFuncAndCheckIndices(agg *LogicalAggregation) ([]*LogicalAggregation, bool)
+        - eliminateSingleMaxMin(agg *LogicalAggregation) *LogicalAggregation
+        - eliminateMaxMin(p LogicalPlan) LogicalPlan
+        - name() string
+
+    }
+    class outerJoinEliminator << (S,Aquamarine) >> {
+        - tryToEliminateOuterJoin(p *LogicalJoin, aggCols []*expression.Column, parentCols []*expression.Column) (LogicalPlan, bool, error)
+        - extractInnerJoinKeys(join *LogicalJoin, innerChildIdx int) *expression.Schema
+        - isColsAllFromOuterTable(cols []*expression.Column, outerUniqueIDs set.Int64Set) bool
+        - isInnerJoinKeysContainUniqueKey(innerPlan LogicalPlan, joinKeys *expression.Schema) (bool, error)
+        - isInnerJoinKeysContainIndex(innerPlan LogicalPlan, joinKeys *expression.Schema) (bool, error)
+        - getDupAgnosticAggCols(p LogicalPlan, oldAggCols []*expression.Column) (bool, []*expression.Column)
+        - doOptimize(p LogicalPlan, aggCols []*expression.Column, parentCols []*expression.Column) (LogicalPlan, error)
+        - optimize(ctx context.Context, p LogicalPlan) (LogicalPlan, error)
+        - name() string
+
+    }
+    class physicalSchemaProducer << (S,Aquamarine) >> {
+        - schema *expression.Schema
+
+        + ResolveIndices() error
+        + Schema() *expression.Schema
+        + SetSchema(schema *expression.Schema) 
+
+    }
+    class ppdSolver << (S,Aquamarine) >> {
+        - optimize(ctx context.Context, lp LogicalPlan) (LogicalPlan, error)
+        - name() string
+
+    }
+    class preprocessor << (S,Aquamarine) >> {
+        - is infoschema.InfoSchema
+        - ctx sessionctx.Context
+        - err error
+        - flag preprocessorFlag
+        - tableAliasInJoin []<font color=blue>map</font>[string]<font color=blue>interface</font>{}
+
+        - checkAutoIncrement(stmt *ast.CreateTableStmt) 
+        - checkCreateDatabaseGrammar(stmt *ast.CreateDatabaseStmt) 
+        - checkDropDatabaseGrammar(stmt *ast.DropDatabaseStmt) 
+        - checkCreateTableGrammar(stmt *ast.CreateTableStmt) 
+        - checkDropTableGrammar(stmt *ast.DropTableStmt) 
+        - checkNonUniqTableAlias(stmt *ast.Join) 
+        - checkCreateIndexGrammar(stmt *ast.CreateIndexStmt) 
+        - checkAlterTableGrammar(stmt *ast.AlterTableStmt) 
+        - checkContainDotColumn(stmt *ast.CreateTableStmt) 
+        - handleTableName(tn *ast.TableName) 
+        - resolveShowStmt(node *ast.ShowStmt) 
+        - resolveAlterTableStmt(node *ast.AlterTableStmt) 
+
+        + Enter(in ast.Node) (ast.Node, bool)
+        + Leave(in ast.Node) (ast.Node, bool)
+
+    }
+    class projInjector << (S,Aquamarine) >> {
+        - inject(plan PhysicalPlan) PhysicalPlan
+
+    }
+    class projectionEliminator << (S,Aquamarine) >> {
+        - optimize(ctx context.Context, lp LogicalPlan) (LogicalPlan, error)
+        - eliminate(p LogicalPlan, replace <font color=blue>map</font>[string]*expression.Column, canEliminate bool) LogicalPlan
+        - name() string
+
+    }
+    class pushDownTopNOptimizer << (S,Aquamarine) >> {
+        - optimize(ctx context.Context, p LogicalPlan) (LogicalPlan, error)
+        - name() string
+
+    }
+    class rootTask << (S,Aquamarine) >> {
+        - p PhysicalPlan
+        - cst float64
+
+        - invalid() bool
+        - copy() task
+        - count() float64
+        - addCost(cst float64) 
+        - cost() float64
+        - plan() PhysicalPlan
+
+    }
+    class tableHintInfo << (S,Aquamarine) >> {
+        - sortMergeJoinTables []hintTableInfo
+        - hashJoinTables []hintTableInfo
+        - indexHintList []indexHintInfo
+
+        - ifPreferMergeJoin(tableNames ...*hintTableInfo) bool
+        - ifPreferHashJoin(tableNames ...*hintTableInfo) bool
+        - matchTableName(tables []*hintTableInfo, hintTables []hintTableInfo) bool
+
+    }
+    interface task  {
+        - count() float64
+        - addCost(cost float64) 
+        - cost() float64
+        - copy() task
+        - plan() PhysicalPlan
+        - invalid() bool
+
+    }
+}
+"core.baseSchemaProducer" *-- "core.Analyze"
+"core.analyzeInfo" *-- "core.AnalyzeColumnsTask"
+"core.analyzeInfo" *-- "core.AnalyzeIndexTask"
+"core.baseSchemaProducer" *-- "core.DDL"
+"core.logicalSchemaProducer" *-- "core.DataSource"
+"core.baseSchemaProducer" *-- "core.Delete"
+"core.baseSchemaProducer" *-- "core.Explain"
+"core.baseSchemaProducer" *-- "core.Insert"
+"core.logicalSchemaProducer" *-- "core.LogicalAggregation"
+"core.logicalSchemaProducer" *-- "core.LogicalIndexScan"
+"core.logicalSchemaProducer" *-- "core.LogicalJoin"
+"core.baseLogicalPlan" *-- "core.LogicalLimit"
+"core.logicalSchemaProducer" *-- "core.LogicalMemTable"
+"core.Plan" *-- "core.LogicalPlan"
+"core.logicalSchemaProducer" *-- "core.LogicalProjection"
+"core.baseLogicalPlan" *-- "core.LogicalSelection"
+"core.ShowContents" *-- "core.LogicalShow"
+"core.logicalSchemaProducer" *-- "core.LogicalShow"
+"core.logicalSchemaProducer" *-- "core.LogicalShowDDLJobs"
+"core.baseLogicalPlan" *-- "core.LogicalSort"
+"core.logicalSchemaProducer" *-- "core.LogicalTableDual"
+"core.logicalSchemaProducer" *-- "core.LogicalTableScan"
+"core.baseLogicalPlan" *-- "core.LogicalTopN"
+"core.baseLogicalPlan" *-- "core.LogicalUnionScan"
+"core.basePhysicalPlan" *-- "core.NominalSort"
+"core.basePhysicalAgg" *-- "core.PhysicalHashAgg"
+"core.basePhysicalJoin" *-- "core.PhysicalHashJoin"
+"core.physicalSchemaProducer" *-- "core.PhysicalIndexLookUpReader"
+"core.physicalSchemaProducer" *-- "core.PhysicalIndexReader"
+"core.physicalSchemaProducer" *-- "core.PhysicalIndexScan"
+"core.basePhysicalPlan" *-- "core.PhysicalLimit"
+"core.physicalSchemaProducer" *-- "core.PhysicalMemTable"
+"core.basePhysicalJoin" *-- "core.PhysicalMergeJoin"
+"core.Plan" *-- "core.PhysicalPlan"
+"core.physicalSchemaProducer" *-- "core.PhysicalProjection"
+"core.basePhysicalPlan" *-- "core.PhysicalSelection"
+"core.ShowContents" *-- "core.PhysicalShow"
+"core.physicalSchemaProducer" *-- "core.PhysicalShow"
+"core.physicalSchemaProducer" *-- "core.PhysicalShowDDLJobs"
+"core.basePhysicalPlan" *-- "core.PhysicalSort"
+"core.physicalSchemaProducer" *-- "core.PhysicalTableDual"
+"core.physicalSchemaProducer" *-- "core.PhysicalTableReader"
+"core.physicalSchemaProducer" *-- "core.PhysicalTableScan"
+"core.basePhysicalPlan" *-- "core.PhysicalTopN"
+"core.basePhysicalPlan" *-- "core.PhysicalUnionScan"
+"core.baseSchemaProducer" *-- "core.Set"
+"core.baseSchemaProducer" *-- "core.ShowDDL"
+"core.baseSchemaProducer" *-- "core.Simple"
+"core.logicalSchemaProducer" *-- "core.TiKVSingleGather"
+"core.aggregationEliminateChecker" *-- "core.aggregationEliminator"
+"core.aggregationEliminateChecker" *-- "core.aggregationPushDownSolver"
+"core.basePlan" *-- "core.baseLogicalPlan"
+"core.physicalSchemaProducer" *-- "core.basePhysicalAgg"
+"core.physicalSchemaProducer" *-- "core.basePhysicalJoin"
+"core.basePlan" *-- "core.basePhysicalPlan"
+"core.basePlan" *-- "core.baseSchemaProducer"
+"core.baseSingleGroupJoinOrderSolver" *-- "core.joinReorderDPSolver"
+"core.baseSingleGroupJoinOrderSolver" *-- "core.joinReorderGreedySolver"
+"core.baseLogicalPlan" *-- "core.logicalSchemaProducer"
+"core.basePhysicalPlan" *-- "core.physicalSchemaProducer"
+
+"core.logicalOptRule" <|-- "core.aggregationEliminator"
+"core.logicalOptRule" <|-- "core.aggregationPushDownSolver"
+"core.LogicalPlan" <|-- "core.baseLogicalPlan"
+"core.logicalOptRule" <|-- "core.buildKeySolver"
+"core.logicalOptRule" <|-- "core.columnPruner"
+"core.task" <|-- "core.copTask"
+"core.logicalOptRule" <|-- "core.joinReOrderSolver"
+"core.logicalOptRule" <|-- "core.maxMinEliminator"
+"core.logicalOptRule" <|-- "core.outerJoinEliminator"
+"core.logicalOptRule" <|-- "core.ppdSolver"
+"core.logicalOptRule" <|-- "core.projectionEliminator"
+"core.logicalOptRule" <|-- "core.pushDownTopNOptimizer"
+"core.task" <|-- "core.rootTask"
+
+"__builtin__.int" #.. "core.JoinType"
+"__builtin__.int" #.. "core.clauseCode"
+"__builtin__.uint8" #.. "core.preprocessorFlag"
+"core.<font color=blue>func</font>(*preprocessor) " #.. "core.PreprocessOpt"
+"core.[]TblColPosInfo" #.. "core.TblColPosInfoSlice"
+@enduml
